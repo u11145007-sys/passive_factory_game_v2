@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>被動語態組裝工廠 (Passive Factory v2)</title>
+<style>
+  :root {
+    --bg-color: #f4f6f9;
+    --card-bg: #ffffff;
+    --primary: #3b82f6;
+    --primary-dark: #2563eb;
+    --subj-color: #3b82f6;
+    --subj-bg: #eff6ff;
+    --be-color: #f59e0b;
+    --be-bg: #fffbeb;
+    --pp-color: #ef4444;
+    --pp-bg: #fef2f2;
+    --by-color: #10b981;
+    --by-bg: #ecfdf5;
+    --text-main: #1e293b;
+    --text-muted: #64748b;
+  }
+
+  * {
+    box-sizing: border-box;
+    font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+    user-select: none;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  header {
+    width: 100%;
+    background: linear-gradient(135deg, #1e293b, #334155);
+    color: white;
+    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  }
+
+  header h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .score-board {
+    display: flex;
+    gap: 20px;
+    font-size: 1.1rem;
+    font-weight: bold;
+  }
+
+  .badge {
+    background: rgba(255,255,255,0.15);
+    padding: 6px 14px;
+    border-radius: 20px;
+  }
+
+  .nav-tabs {
+    display: flex;
+    gap: 12px;
+    margin: 20px 0;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .tab-btn {
+    padding: 12px 24px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    background: white;
+    color: var(--text-muted);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    transition: all 0.2s;
+  }
+
+  .tab-btn.active {
+    background: var(--primary);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  }
+
+  .container {
+    width: 95%;
+    max-width: 900px;
+    background: var(--card-bg);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    margin-bottom: 30px;
+  }
+
+  .formula-bar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    background: #f8fafc;
+    padding: 12px;
+    border-radius: 12px;
+    border: 2px dashed #cbd5e1;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    font-weight: bold;
+  }
+
+  .f-tag {
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+  }
+  .f-subj { background: var(--subj-bg); color: var(--subj-color); border: 1px solid var(--subj-color); }
+  .f-be { background: var(--be-bg); color: #b45309; border: 1px solid var(--be-color); }
+  .f-pp { background: var(--pp-bg); color: var(--pp-color); border: 1px solid var(--pp-color); }
+  .f-by { background: var(--by-bg); color: #047857; border: 1px solid var(--by-color); }
+
+  /* Stage 1: Sorting */
+  .sort-item-box {
+    text-align: center;
+    margin: 20px 0;
+  }
+  .current-word {
+    display: inline-block;
+    font-size: 2.2rem;
+    font-weight: bold;
+    padding: 16px 36px;
+    background: #1e293b;
+    color: white;
+    border-radius: 16px;
+    box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+    animation: popIn 0.3s ease;
+  }
+  .bins {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 24px;
+  }
+  .bin {
+    padding: 24px 12px;
+    border-radius: 14px;
+    text-align: center;
+    font-size: 1.2rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    border: 3px solid transparent;
+  }
+  .bin:hover { transform: translateY(-4px); }
+  .bin-subj { background: var(--subj-bg); color: var(--subj-color); border-color: var(--subj-color); }
+  .bin-be { background: var(--be-bg); color: #b45309; border-color: var(--be-color); }
+  .bin-pp { background: var(--pp-bg); color: var(--pp-color); border-color: var(--pp-color); }
+
+  /* Stage 2 & 3: Sentence Builder */
+  .prompt-card {
+    background: #f1f5f9;
+    padding: 16px 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    border-left: 6px solid var(--primary);
+  }
+  .prompt-label { font-size: 0.9rem; color: var(--text-muted); font-weight: bold; }
+  .prompt-text { font-size: 1.4rem; font-weight: bold; margin-top: 4px; color: #0f172a; }
+  .prompt-zh { font-size: 1rem; color: #475569; margin-top: 4px; }
+
+  .drop-zone {
+    min-height: 76px;
+    background: #f8fafc;
+    border: 2px dashed #94a3b8;
+    border-radius: 12px;
+    padding: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .word-bank {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    padding: 16px;
+    background: #f1f5f9;
+    border-radius: 12px;
+    min-height: 76px;
+  }
+
+  .word-chip {
+    padding: 12px 20px;
+    font-size: 1.25rem;
+    font-weight: bold;
+    background: white;
+    border: 2px solid #cbd5e1;
+    border-radius: 10px;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    transition: all 0.15s;
+  }
+  .word-chip:hover {
+    border-color: var(--primary);
+    transform: translateY(-2px);
+  }
+  .word-chip.in-slot {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary-dark);
+  }
+
+  .controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+    gap: 10px;
+  }
+
+  .btn {
+    padding: 12px 24px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn-check { background: #10b981; color: white; }
+  .btn-check:hover { background: #059669; }
+  .btn-clear { background: #e2e8f0; color: #334155; }
+  .btn-clear:hover { background: #cbd5e1; }
+  .btn-next { background: var(--primary); color: white; display: none; }
+  .btn-next:hover { background: var(--primary-dark); }
+
+  .feedback {
+    margin-top: 16px;
+    padding: 16px;
+    border-radius: 10px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    text-align: left;
+    line-height: 1.5;
+    display: none;
+  }
+  .feedback.success { background: #d1fae5; color: #065f46; display: block; text-align: center; }
+  .feedback.error { background: #fee2e2; color: #991b1b; border: 2px solid #fca5a5; display: block; }
+
+  .level-switch {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .lvl-btn {
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 2px solid #cbd5e1;
+    background: white;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  .lvl-btn.active-low { background: #10b981; color: white; border-color: #10b981; }
+  .lvl-btn.active-high { background: #ef4444; color: white; border-color: #ef4444; }
+
+  .cheat-sheet-btn {
+    background: #f59e0b;
+    color: white;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  .modal {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5);
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+  }
+  .modal-content {
+    background: white;
+    padding: 24px;
+    border-radius: 16px;
+    max-width: 500px;
+    width: 90%;
+  }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: center; }
+  th { background: #f1f5f9; }
+
+  @keyframes popIn {
+    0% { transform: scale(0.8); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🏭 被動語態組裝工廠</h1>
+  <div class="score-board">
+    <button class="cheat-sheet-btn" onclick="toggleModal(true)">📖 動詞三態小抄</button>
+    <div class="badge">得分: <span id="score">0</span></div>
+  </div>
+</header>
+
+<div class="nav-tabs">
+  <button class="tab-btn active" onclick="switchStage(1)">第一關：零件分類站</button>
+  <button class="tab-btn" onclick="switchStage(2)">第二關：搬家大作戰</button>
+  <button class="tab-btn" onclick="switchStage(3)">第三關：終極組裝線</button>
+</div>
+
+<div class="container">
+  <!-- 核心公式提示條 -->
+  <div class="formula-bar">
+    <span>核心公式：</span>
+    <span class="f-tag f-subj">新主詞 (誰被做)</span> +
+    <span class="f-tag f-be">be 動詞 (時態)</span> +
+    <span class="f-tag f-pp">過去分詞 (p.p.)</span> +
+    <span class="f-tag f-by">(by + 受詞)</span>
+  </div>
+
+  <!-- 第一關：分類 -->
+  <div id="stage-1">
+    <p style="text-align:center; color:#475569; font-size:1.1rem;">請判斷下方出現的單字，應該放進哪一個零件籃子裡？（題目已隨機打亂順序！）</p>
+    <div class="sort-item-box">
+      <div style="font-size:0.95rem; color:#64748b; margin-bottom:6px;">進度：<span id="s1-progress">1 / 12</span></div>
+      <div class="current-word" id="s1-word">Robots</div>
+    </div>
+    <div class="bins">
+      <div class="bin bin-subj" onclick="checkSort('subj')">🟦 新主詞<br><small>(物品/對象)</small></div>
+      <div class="bin bin-be" onclick="checkSort('be')">🟨 be 動詞<br><small>(am/is/are/was/were)</small></div>
+      <div class="bin bin-pp" onclick="checkSort('pp')">🟥 過去分詞 p.p.<br><small>(動作變身)</small></div>
+    </div>
+    <div id="s1-feedback" class="feedback" style="text-align:center;"></div>
+  </div>
+
+  <!-- 第二關：搬家大作戰 (主動改被動填空) -->
+  <div id="stage-2" style="display:none;">
+    <div class="prompt-card">
+      <div class="prompt-label">請把主動句改寫成被動句（點擊下方單字卡放入空格）：</div>
+      <div class="prompt-text" id="s2-active">He likes robots.</div>
+      <div class="prompt-zh" id="s2-zh">（他喜歡機器人 → 機器人被他喜歡）</div>
+    </div>
+    <div style="font-size:0.95rem; color:#64748b; margin-bottom:6px;">題目 <span id="s2-progress">1 / 5</span>（注意有多餘的干擾卡片喔！）</div>
+    <div class="drop-zone" id="s2-drop"></div>
+    <div class="word-bank" id="s2-bank"></div>
+    <div class="controls">
+      <button class="btn btn-clear" onclick="resetBuilder(2)">🔄 清除重排</button>
+      <button class="btn btn-check" onclick="checkBuilder(2)">✅ 檢查答案</button>
+      <button class="btn btn-next" id="s2-next" onclick="nextQuestion(2)">下一題 ➡️</button>
+    </div>
+    <div id="s2-feedback" class="feedback"></div>
+  </div>
+
+  <!-- 第三關：終極組裝線 (高低分組重組) -->
+  <div id="stage-3" style="display:none;">
+    <div class="level-switch">
+      <button class="lvl-btn active-low" id="btn-low" onclick="setLevel('low')">🟢 低組（基礎4塊拼圖）</button>
+      <button class="lvl-btn" id="btn-high" onclick="setLevel('high')">🔴 高組（進階否定與助動詞）</button>
+    </div>
+    <div class="prompt-card">
+      <div class="prompt-label">請依照中文提示與核心公式，拼出正確的被動句：</div>
+      <div class="prompt-text" id="s3-zh">我的腳踏車昨天被偷了。</div>
+      <div class="prompt-zh" id="s3-hint">提示：不知道小偷是誰，可以省略 by 受詞</div>
+    </div>
+    <div style="font-size:0.95rem; color:#64748b; margin-bottom:6px;">題目 <span id="s3-progress">1 / 4</span></div>
+    <div class="drop-zone" id="s3-drop"></div>
+    <div class="word-bank" id="s3-bank"></div>
+    <div class="controls">
+      <button class="btn btn-clear" onclick="resetBuilder(3)">🔄 清除重排</button>
+      <button class="btn btn-check" onclick="checkBuilder(3)">✅ 檢查答案</button>
+      <button class="btn btn-next" id="s3-next" onclick="nextQuestion(3)">下一題 ➡️</button>
+    </div>
+    <div id="s3-feedback" class="feedback"></div>
+  </div>
+</div>
+
+<!-- 小抄彈窗 -->
+<div class="modal" id="cheatModal" onclick="toggleModal(false)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <h2 style="margin-top:0;">📖 常用動詞三態小抄卡</h2>
+    <table>
+      <tr><th>中文</th><th>原形</th><th>過去式</th><th>過去分詞 (p.p.)</th></tr>
+      <tr><td>偷</td><td>steal</td><td>stole</td><td><b>stolen</b></td></tr>
+      <tr><td>打破</td><td>break</td><td>broke</td><td><b>broken</b></td></tr>
+      <tr><td>說(語言)</td><td>speak</td><td>spoke</td><td><b>spoken</b></td></tr>
+      <tr><td>咬</td><td>bite</td><td>bit</td><td><b>bitten</b></td></tr>
+      <tr><td>吃</td><td>eat</td><td>ate</td><td><b>eaten</b></td></tr>
+      <tr><td>看見</td><td>see</td><td>saw</td><td><b>seen</b></td></tr>
+      <tr><td>給予/出題</td><td>give</td><td>gave</td><td><b>given</b></td></tr>
+      <tr><td>喜歡/完成/打掃</td><td>like / finish / clean</td><td>+d / +ed</td><td><b>liked / finished / cleaned</b></td></tr>
+    </table>
+    <p style="font-size:0.9rem; color:#b45309; margin-bottom:0;">💡 助動詞 (must / can / should / will) 後面一定要接原形 <b>be</b>！</p>
+    <button class="btn btn-next" style="display:block; width:100%; margin-top:16px;" onclick="toggleModal(false)">關閉小抄</button>
+  </div>
+</div>
+
+<script>
+  let score = 0;
+  function addScore(pts) {
+    score += pts;
+    document.getElementById('score').innerText = score;
+  }
+
+  function toggleModal(show) {
+    document.getElementById('cheatModal').style.display = show ? 'flex' : 'none';
+  }
+
+  function switchStage(stage) {
+    document.querySelectorAll('.tab-btn').forEach((b, i) => {
+      b.classList.toggle('active', i + 1 === stage);
+    });
+    document.getElementById('stage-1').style.display = stage === 1 ? 'block' : 'none';
+    document.getElementById('stage-2').style.display = stage === 2 ? 'block' : 'none';
+    document.getElementById('stage-3').style.display = stage === 3 ? 'block' : 'none';
+  }
+
+  function shuffle(arr) {
+    const copy = [...arr];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }
+
+  // --- Stage 1 Data (打亂順序且避免連續同類型) ---
+  const rawS1Items = [
+    { word: "stolen", type: "pp", hint: "steal 的過去分詞（被偷）" },
+    { word: "Robots", type: "subj", hint: "物品/機器人（當新主詞）" },
+    { word: "was", type: "be", hint: "過去式單數的 be 動詞" },
+    { word: "bitten", type: "pp", hint: "bite 的過去分詞（被咬）" },
+    { word: "are", type: "be", hint: "現在式複數的 be 動詞" },
+    { word: "The window", type: "subj", hint: "物品/窗戶（當新主詞）" },
+    { word: "is", type: "be", hint: "現在式單數的 be 動詞" },
+    { word: "eaten", type: "pp", hint: "eat 的過去分詞（被吃）" },
+    { word: "My bike", type: "subj", hint: "物品/腳踏車（當新主詞）" },
+    { word: "broken", type: "pp", hint: "break 的過去分詞（被打破）" },
+    { word: "The apple", type: "subj", hint: "物品/蘋果（當新主詞）" },
+    { word: "were", type: "be", hint: "過去式複數的 be 動詞" }
+  ];
+  let s1Items = shuffle(rawS1Items);
+  let s1Idx = 0;
+
+  function renderS1() {
+    if (s1Idx >= s1Items.length) {
+      document.getElementById('s1-word').innerText = "🎉 第一關通關！";
+      document.getElementById('s1-progress').innerText = "完成";
+      return;
+    }
+    document.getElementById('s1-progress').innerText = `${s1Idx + 1} / ${s1Items.length}`;
+    const el = document.getElementById('s1-word');
+    el.innerText = s1Items[s1Idx].word;
+    el.style.animation = 'none';
+    el.offsetHeight;
+    el.style.animation = 'popIn 0.3s ease';
+  }
+
+  function checkSort(chosen) {
+    if (s1Idx >= s1Items.length) return;
+    const fb = document.getElementById('s1-feedback');
+    const current = s1Items[s1Idx];
+    if (chosen === current.type) {
+      addScore(10);
+      fb.className = 'feedback success';
+      fb.innerText = `✅ 正確！${current.word} 是「${current.hint}」(+10分)`;
+      s1Idx++;
+      setTimeout(() => {
+        fb.style.display = 'none';
+        renderS1();
+      }, 800);
+    } else {
+      fb.className = 'feedback error';
+      fb.innerText = `❌ 放錯籃子囉！提示：看看「${current.word}」是物品名稱、am/is/are/was/were，還是動詞變化？`;
+    }
+  }
+
+  // --- Stage 2 Data ---
+  const s2Questions = [
+    {
+      active: "He likes robots.",
+      zh: "（他喜歡機器人 → 機器人被他喜歡）",
+      answer: ["Robots", "are", "liked", "by", "him."],
+      distractors: ["he.", "likes"],
+      errorHints: {
+        distractor: "⚠️ 發現干擾卡！主動句的 likes 必須變成「be動詞 + p.p. (are liked)」，而且 he 放在 by 後面要變成受格 him. 喔！",
+        order: "💡 順序提示：先把被喜歡的「Robots」搬到最前面當新主詞，接著放 be 動詞 (are) + 過去分詞 (liked) + by him."
+      }
+    },
+    {
+      active: "A dog bit the poor boy.",
+      zh: "（一隻狗咬了可憐的男孩 → 男孩被狗咬了）",
+      answer: ["The poor boy", "was", "bitten", "by", "a dog."],
+      distractors: ["is", "bit"],
+      errorHints: {
+        distractor: "⚠️ 發現干擾卡！主動句的 bit 是過去式，所以 be 動詞要用過去式的「was」（不能用 is），動詞也要變成過去分詞「bitten」喔！",
+        order: "💡 順序提示：受害者主角「The poor boy」放最前面 → 過去式 be 動詞 (was) → 過去分詞 (bitten) → by a dog."
+      }
+    },
+    {
+      active: "Tom didn't eat the apple.",
+      zh: "（湯姆沒有吃蘋果 → 蘋果沒有被湯姆吃）",
+      answer: ["The apple", "wasn't", "eaten", "by", "Tom."],
+      distractors: ["didn't", "ate"],
+      errorHints: {
+        distractor: "⚠️ 發現干擾卡！被動語態的否定句不能用 didn't，要在 be 動詞後面加 not（wasn't），動詞 eat 也要變成 p.p.（eaten）！",
+        order: "💡 順序提示：新主詞「The apple」放句首 → 否定 be 動詞 (wasn't) → 過去分詞 (eaten) → by Tom."
+      }
+    },
+    {
+      active: "You must finish the homework.",
+      zh: "（你必須完成功課 → 功課必須被完成）",
+      answer: ["The homework", "must", "be", "finished."],
+      distractors: ["is", "finish"],
+      errorHints: {
+        distractor: "⚠️ 發現干擾卡！助動詞 must 後面一定要接原形「be」（不能用 is），而且動詞 finish 要加上 ed 變成「finished.」！",
+        order: "💡 順序提示：物品「The homework」放句首 → 助動詞 (must) → 原形 (be) → 過去分詞 (finished.)"
+      }
+    },
+    {
+      active: "We can see many stars.",
+      zh: "（我們可以看到很多星星 → 星星可以被看見）",
+      answer: ["Many stars", "can", "be", "seen."],
+      distractors: ["are", "saw"],
+      errorHints: {
+        distractor: "⚠️ 發現干擾卡！助動詞 can 後面一定要接原形「be」（不能用 are），see 的過去分詞是「seen.」（saw 是過去式）！",
+        order: "💡 順序提示：新主詞「Many stars」放句首 → 助動詞 (can) → 原形 (be) → 過去分詞 (seen.)"
+      }
+    }
+  ];
+
+  // --- Stage 3 Data ---
+  const s3Data = {
+    low: [
+      {
+        zh: "機器人被他喜歡。",
+        hint: "現在式複數主詞 Robots，搭配 are",
+        answer: ["Robots", "are", "liked", "by him."],
+        orderHint: "💡 順序提示：新主詞 (Robots) + be動詞 (are) + p.p. (liked) + by him."
+      },
+      {
+        zh: "我的腳踏車昨天被偷了。",
+        hint: "過去式單數 My bike，搭配 was",
+        answer: ["My bike", "was", "stolen", "yesterday."],
+        orderHint: "💡 順序提示：新主詞 (My bike) + be動詞 (was) + p.p. (stolen) + 時間放最後 (yesterday.)"
+      },
+      {
+        zh: "窗戶被打破了。",
+        hint: "不知道誰打破的，省略 by 受詞",
+        answer: ["The window", "was", "broken."],
+        orderHint: "💡 順序提示：新主詞 (The window) + be動詞 (was) + p.p. (broken.)"
+      },
+      {
+        zh: "美國講英文（英文在美國被說）。",
+        hint: "事實真理用現在式 is",
+        answer: ["English", "is", "spoken", "in USA."],
+        orderHint: "💡 順序提示：新主詞 (English) + be動詞 (is) + p.p. (spoken) + 地點放最後 (in USA.)"
+      }
+    ],
+    high: [
+      {
+        zh: "那顆蘋果昨天沒有被湯姆吃掉。",
+        hint: "過去式否定：be 動詞後面加 not (wasn't)",
+        answer: ["The apple", "wasn't", "eaten", "by Tom", "yesterday."],
+        orderHint: "💡 順序提示：新主詞 (The apple) + 否定beV (wasn't) + p.p. (eaten) + (by Tom) + 時間 (yesterday.)"
+      },
+      {
+        zh: "那個可憐的男孩被一隻狗咬了。",
+        hint: "受害者放句首，bite 的過去分詞是 bitten",
+        answer: ["The poor boy", "was", "bitten", "by", "a dog."],
+        orderHint: "💡 順序提示：新主詞 (The poor boy) + be動詞 (was) + p.p. (bitten) + by + a dog."
+      },
+      {
+        zh: "教室每天應該被打掃。",
+        hint: "助動詞 should 後面要接原形 be",
+        answer: ["The classroom", "should", "be", "cleaned", "every day."],
+        orderHint: "💡 順序提示：新主詞 (The classroom) + 助動詞 (should) + 原形 (be) + p.p. (cleaned) + 時間 (every day.)"
+      },
+      {
+        zh: "明天將會舉行一次測驗。",
+        hint: "助動詞 will + be + 過去分詞 given",
+        answer: ["A test", "will", "be", "given", "tomorrow."],
+        orderHint: "💡 順序提示：新主詞 (A test) + 助動詞 (will) + 原形 (be) + p.p. (given) + 時間 (tomorrow.)"
+      }
+    ]
+  };
+
+  let s2Idx = 0;
+  let s3Level = 'low';
+  let s3Idx = 0;
+
+  function renderBuilder(stage) {
+    document.getElementById(`s${stage}-feedback`).style.display = 'none';
+    document.getElementById(`s${stage}-next`).style.display = 'none';
+    const drop = document.getElementById(`s${stage}-drop`);
+    const bank = document.getElementById(`s${stage}-bank`);
+    drop.innerHTML = '';
+    bank.innerHTML = '';
+
+    let q, total;
+    if (stage === 2) {
+      total = s2Questions.length;
+      if (s2Idx >= total) {
+        drop.innerHTML = '<h3>🎉 第二關全部完成！太棒了！</h3>';
+        return;
+      }
+      q = s2Questions[s2Idx];
+      document.getElementById('s2-progress').innerText = `${s2Idx + 1} / ${total}`;
+      document.getElementById('s2-active').innerText = q.active;
+      document.getElementById('s2-zh').innerText = q.zh;
+      const cards = shuffle([...q.answer, ...q.distractors]);
+      cards.forEach((word, idx) => createChip(stage, word, idx));
+    } else {
+      const list = s3Data[s3Level];
+      total = list.length;
+      if (s3Idx >= total) {
+        drop.innerHTML = '<h3>🏆 第三關組裝挑戰大成功！</h3>';
+        return;
+      }
+      q = list[s3Idx];
+      document.getElementById('s3-progress').innerText = `${s3Idx + 1} / ${total}`;
+      document.getElementById('s3-zh').innerText = q.zh;
+      document.getElementById('s3-hint').innerText = `💡 提示：${q.hint}`;
+      const cards = shuffle(q.answer);
+      cards.forEach((word, idx) => createChip(stage, word, idx));
+    }
+  }
+
+  function createChip(stage, word, id) {
+    const bank = document.getElementById(`s${stage}-bank`);
+    const chip = document.createElement('div');
+    chip.className = 'word-chip';
+    chip.innerText = word;
+    chip.dataset.id = id;
+    chip.onclick = () => toggleChip(stage, chip);
+    bank.appendChild(chip);
+  }
+
+  function toggleChip(stage, chip) {
+    const drop = document.getElementById(`s${stage}-drop`);
+    const bank = document.getElementById(`s${stage}-bank`);
+    if (chip.parentElement === bank) {
+      chip.classList.add('in-slot');
+      drop.appendChild(chip);
+    } else {
+      chip.classList.remove('in-slot');
+      bank.appendChild(chip);
+    }
+  }
+
+  function resetBuilder(stage) {
+    renderBuilder(stage);
+  }
+
+  function checkBuilder(stage) {
+    const drop = document.getElementById(`s${stage}-drop`);
+    const userWords = Array.from(drop.children).map(c => c.innerText);
+    const fb = document.getElementById(`s${stage}-feedback`);
+
+    if (userWords.length === 0) {
+      fb.className = 'feedback error';
+      fb.innerText = '⚠️ 你還沒有放入任何單字卡喔！請點擊下方的單字卡組裝句子。';
+      return;
+    }
+
+    if (stage === 2) {
+      const q = s2Questions[s2Idx];
+      const target = q.answer;
+      if (userWords.join(' ') === target.join(' ')) {
+        addScore(20);
+        fb.className = 'feedback success';
+        fb.innerText = `🎉 完全正確！組裝成功：${target.join(' ')} (+20分)`;
+        document.getElementById('s2-next').style.display = 'inline-block';
+      } else {
+        fb.className = 'feedback error';
+        // 診斷錯誤原因
+        const usedDistractor = userWords.find(w => q.distractors.includes(w));
+        if (usedDistractor) {
+          fb.innerHTML = `❌ 選到了干擾卡片 <b>「${usedDistractor}」</b>！<br>${q.errorHints.distractor}`;
+        } else if (userWords.length < target.length) {
+          fb.innerHTML = `❌ 句子還不完整喔（目前只有 ${userWords.length} 張卡片，正確需要 ${target.length} 張）！<br>${q.errorHints.order}`;
+        } else {
+          // 找出第一個放錯的位置
+          let firstWrongIdx = userWords.findIndex((w, idx) => w !== target[idx]);
+          fb.innerHTML = `❌ 第 ${firstWrongIdx + 1} 個位置放了 <b>「${userWords[firstWrongIdx]}」</b>，順序不太對喔！<br>${q.errorHints.order}`;
+        }
+      }
+    } else {
+      const q = s3Data[s3Level][s3Idx];
+      const target = q.answer;
+      if (userWords.join(' ') === target.join(' ')) {
+        addScore(20);
+        fb.className = 'feedback success';
+        fb.innerText = `🎉 完全正確！組裝成功：${target.join(' ')} (+20分)`;
+        document.getElementById('s3-next').style.display = 'inline-block';
+      } else {
+        fb.className = 'feedback error';
+        if (userWords.length < target.length) {
+          fb.innerHTML = `❌ 還有卡片沒放上去喔（需要全部 ${target.length} 張卡片）！<br>${q.orderHint}`;
+        } else {
+          let firstWrongIdx = userWords.findIndex((w, idx) => w !== target[idx]);
+          fb.innerHTML = `❌ 第 ${firstWrongIdx + 1} 個位置放了 <b>「${userWords[firstWrongIdx]}」</b>，位置不對喔！<br>${q.orderHint}`;
+        }
+      }
+    }
+  }
+
+  function nextQuestion(stage) {
+    if (stage === 2) s2Idx++;
+    else s3Idx++;
+    renderBuilder(stage);
+  }
+
+  function setLevel(lvl) {
+    s3Level = lvl;
+    s3Idx = 0;
+    document.getElementById('btn-low').className = lvl === 'low' ? 'lvl-btn active-low' : 'lvl-btn';
+    document.getElementById('btn-high').className = lvl === 'high' ? 'lvl-btn active-high' : 'lvl-btn';
+    renderBuilder(3);
+  }
+
+  // Init
+  renderS1();
+  renderBuilder(2);
+  renderBuilder(3);
+</script>
+</body>
+</html>
